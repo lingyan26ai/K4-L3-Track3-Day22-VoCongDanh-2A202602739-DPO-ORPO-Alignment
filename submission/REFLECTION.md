@@ -8,8 +8,11 @@
 > Mọi con số dưới đây lấy từ file do notebook sinh ra (`adapters/dpo/dpo_metrics.json`,
 > `data/eval/judge_summary.json`, `data/eval/benchmark_results.json`…), không ước lượng bằng mắt.
 
-**Tiến độ:** đã chạy NB0–NB2. Các số liệu bên dưới được chép từ output Colab trong ảnh đã lưu tại
-`submission/screenshots/`. Chưa có kết quả NB3–NB4 trong repo, nên các mục tương ứng còn để trống.
+**Tiến độ:** đã chạy NB0–NB3. Các số liệu bên dưới được chép từ output Colab trong ảnh đã lưu tại
+`submission/screenshots/`. Phiên Colab đã mất các file trước khi chạy được NB4, nên chưa có kết quả
+so sánh SFT với SFT+DPO. Ảnh NB3 đã lưu gồm `03-dpo-training.png`, `03-dpo-reward-curves.png`
+và `03-dpo-metrics.png`. Các số DPO trong bảng được làm tròn đến bốn chữ số thập phân từ output.
+File `adapters/dpo/dpo_metrics.json`, trọng số và dấu vân tay tập dữ liệu chưa được tải về repo.
 Notebook Colab trong repo mới có code NB0 đã điền, chưa chứa output của phiên Colab đã chạy.
 
 ---
@@ -21,9 +24,9 @@ Notebook Colab trong repo mới có code NB0 đã điền, chưa chứa output c
 | GPU / VRAM | Colab Tesla T4 · log báo bộ nhớ tối đa 14.563 GB |
 | Mô hình gốc | unsloth/Qwen3-4B-Instruct-2507-unsloth-bnb-4bit |
 | Dữ liệu SFT | saillab/alpaca-vietnamese-cleaned (mặc định trong repo, cần đối chiếu cấu hình phiên Colab) · 1.000 mẫu · 1 epoch |
-| Dữ liệu sở thích | sailor2/sea-ultrafeedback-onpolicy (mặc định trong repo, cần đối chiếu cấu hình phiên Colab) · 800 train / 100 held-out |
+| Dữ liệu sở thích | sailor2/sea-ultrafeedback-onpolicy (xác nhận trong output NB3) · 800 train / 100 held-out |
 | Chosen dài hơn rejected (NB2) | 65,9% theo số token |
-| DPO: β / tốc độ học (lr) / số epoch | _<0.1 / 5e-6 / 1>_ |
+| DPO: β / tốc độ học (lr) / số epoch | 0,1 / 5e-6 / 1 · loss sigmoid · 100 bước |
 | Giám khảo | _<rm:tên-mô-hình hoặc nhà-cung-cấp:tên-mô-hình; sanity accuracy>_ |
 | Chi phí | _<0 đồng (Colab miễn phí) / ...>_ |
 
@@ -58,13 +61,22 @@ cũng chưa thể suy ra mức nhiễu của toàn bộ tập dữ liệu từ b
 
 | Chỉ số | Giá trị |
 |---|---:|
-| Thời gian huấn luyện NB3 | _<...>_ |
+| Thời gian huấn luyện NB3 | 29 phút 46 giây theo thanh tiến trình train, chưa tính precompute reference và đánh giá cuối riêng |
 | VRAM cao nhất | _<...>_ |
-| Reward gap cuối trên tập huấn luyện (chosen − rejected) | _<...>_ |
-| Độ chính xác reward trên held-out | _<...>_ |
-| Margin trên held-out | _<...>_ |
-| Chẩn đoán tự động (`diagnosis`) | _<INTENDED / LIKELIHOOD DISPLACEMENT / FAILURE / AMBIGUOUS>_ |
+| Loss trung bình huấn luyện | 0,6745 |
+| Loss đầu tiên được ghi | 0,6919 |
+| Reward chosen / rejected cuối trên train | 0,4036 / 0,3076 |
+| Reward gap cuối trên tập huấn luyện (chosen − rejected) | 0,0960 |
+| Reward chosen / rejected trên held-out | 0,4172 / 0,3292 |
+| Độ chính xác reward trên held-out | 67% |
+| Margin trên held-out | 0,0880 |
+| Chẩn đoán tự động (`diagnosis`) | INTENDED |
 | Độ dài trung bình câu trả lời SFT → DPO (NB4) | _<... → ... ký tự>_ |
+
+NB3 dùng mô hình tham chiếu `models/sft-merged` và tính sẵn reference log-prob. Ảnh output ghi
+9 phút 01 giây cho precompute train và 1 phút 10 giây cho precompute eval. Mức bộ nhớ 4,69 GB
+ở cell dọn GPU sau NB3 không phải VRAM cao nhất, nên chưa điền vào hàng đó.
+Độ chính xác reward 67% là tỉ lệ chosen có reward cao hơn rejected, chưa phải win rate ở NB4.
 
 ---
 
@@ -77,13 +89,28 @@ Margin tăng vì chosen tăng hay vì rejected giảm nhanh hơn (dịch chuyể
 cùng hướng với tập huấn luyện không, hay chỉ tập huấn luyện tăng (học thuộc, overfit)? Chẩn đoán tự động có khớp với điều bạn
 thấy không?_
 
-_Trả lời ở đây._
+Reward của chosen và rejected đều tăng trên cả train lẫn held-out. Cuối train, chosen đạt 0,4036
+và rejected đạt 0,3076, nên margin là 0,0960. Trên held-out, chosen đạt 0,4172 và rejected đạt
+0,3292, cho margin 0,0880. Như vậy margin tăng vì chosen tăng nhanh hơn rejected, không phải
+vì rejected giảm. Đây không phải likelihood displacement, vì reward chosen vẫn dương.
 
-**Giải thích từ NB0, chưa phải kết quả huấn luyện NB3:** DPO tối ưu chênh lệch reward của chosen
+Đường train có dao động, còn margin held-out tăng qua các lần đánh giá. Hai tập đi cùng hướng
+và margin cuối khá gần nhau, nên chưa thấy dấu hiệu rõ là mô hình chỉ học thuộc train. Tuy vậy,
+độ chính xác reward held-out tăng từ 59% lên 71%, rồi giảm về 67% ở cuối. Việc margin tăng không
+đồng nghĩa độ chính xác tăng đều. Cũng chưa thể dùng 67% này để kết luận DPO trả lời tốt hơn SFT.
+
+Chẩn đoán tự động là INTENDED, phù hợp với quy tắc trong code là chosen dương và margin dương.
+Tuy nhiên, biểu đồ không hoàn toàn giống mẫu lý tưởng trong hướng dẫn là chosen tăng và rejected
+giảm. Cả hai đều tăng, chỉ khác tốc độ. Dòng chẩn đoán dùng trung bình ba bản ghi cuối nên báo
+margin khoảng 0,086, còn margin của lần đánh giá cuối là 0,0880. Với dữ liệu có 65,9% chosen dài
+hơn rejected và ba cặp mẫu có nhiễu, vẫn cần NB4 để kiểm tra chất lượng câu trả lời và thiên vị độ dài.
+NB4 chưa chạy được do phiên Colab mất file và hết quyền sử dụng GPU.
+
+**Giải thích từ NB0:** DPO tối ưu chênh lệch reward của chosen
 và rejected. Trong ví dụ A, reward chosen là +1 và rejected là −1. Trong ví dụ B, chosen là −3
 và rejected là −5. Cả hai đều có margin 2 và loss 0,127 khi β = 1. Vì vậy xác suất chosen vẫn
 có thể giảm nếu rejected giảm nhanh hơn. RPO thêm NLL của chosen nên phạt ví dụ B nhiều hơn:
-loss RPO ở A là 2,027, ở B là 2,427. Cần đường reward thực tế ở NB3 để chẩn đoán lần chạy này.
+loss RPO ở A là 2,027, ở B là 2,427.
 
 ---
 
