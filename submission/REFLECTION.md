@@ -2,11 +2,15 @@
 
 **Tên:** _<Họ Tên>_
 **Khoá:** _<A20-K4 / ...>_
-**Tier đã chạy:** _<T4 | BIGGPU | cả hai>_
+**Tier đã chạy:** T4
 **Ngày:** _<YYYY-MM-DD>_
 
 > Mọi con số dưới đây lấy từ file do notebook sinh ra (`adapters/dpo/dpo_metrics.json`,
 > `data/eval/judge_summary.json`, `data/eval/benchmark_results.json`…), không ước lượng bằng mắt.
+
+**Tiến độ:** đã chạy NB0–NB2. Các số liệu bên dưới được chép từ output Colab trong ảnh đã lưu tại
+`submission/screenshots/`. Chưa có kết quả NB3–NB4 trong repo, nên các mục tương ứng còn để trống.
+Notebook Colab trong repo mới có code NB0 đã điền, chưa chứa output của phiên Colab đã chạy.
 
 ---
 
@@ -14,14 +18,39 @@
 
 | Mục | Giá trị |
 |---|---|
-| GPU / VRAM | _<ví dụ: Colab T4 16 GB>_ |
-| Mô hình gốc | _<ví dụ: unsloth/Qwen3-4B-Instruct-2507-unsloth-bnb-4bit>_ |
-| Dữ liệu SFT | _<saillab/alpaca-vietnamese-cleaned · N mẫu · số epoch>_ |
-| Dữ liệu sở thích | _<sailor2/sea-ultrafeedback-onpolicy (vi) · N huấn luyện / N held-out>_ |
-| Chosen dài hơn rejected (NB2) | _<ví dụ: 65%>_ |
+| GPU / VRAM | Colab Tesla T4 · log báo bộ nhớ tối đa 14.563 GB |
+| Mô hình gốc | unsloth/Qwen3-4B-Instruct-2507-unsloth-bnb-4bit |
+| Dữ liệu SFT | saillab/alpaca-vietnamese-cleaned (mặc định trong repo, cần đối chiếu cấu hình phiên Colab) · 1.000 mẫu · 1 epoch |
+| Dữ liệu sở thích | sailor2/sea-ultrafeedback-onpolicy (mặc định trong repo, cần đối chiếu cấu hình phiên Colab) · 800 train / 100 held-out |
+| Chosen dài hơn rejected (NB2) | 65,9% theo số token |
 | DPO: β / tốc độ học (lr) / số epoch | _<0.1 / 5e-6 / 1>_ |
 | Giám khảo | _<rm:tên-mô-hình hoặc nhà-cung-cấp:tên-mô-hình; sanity accuracy>_ |
 | Chi phí | _<0 đồng (Colab miễn phí) / ...>_ |
+
+**NB0:** `my_dpo_loss` khớp công thức tham chiếu với loss 0,6981. Khi policy bằng reference,
+loss bằng 0,6931 và reward của cả chosen lẫn rejected đều bằng 0.
+
+**NB1:** huấn luyện hoàn tất 125 bước trong 10 phút 57 giây. Loss ở bước 10 là 1,884150,
+ở bước 120 là 1,283640. Đường loss giảm nhìn chung, có dao động giữa các bước.
+Dòng `Final SFT loss: 1.3602` là loss trung bình huấn luyện do `result.training_loss` trả về,
+không phải loss riêng của bước cuối. Log xác nhận lưu adapter tại `adapters/sft-mini/`
+và mô hình gộp 16-bit tại `models/sft-merged/` trên Colab. Các trọng số chưa được tải về repo.
+
+**NB2:** kiểm tra không trùng câu hỏi đã qua (`no prompt overlap`). Dữ liệu 800 train / 100 eval
+đã lưu tại `data/pref/` trên Colab. Trung vị độ dài chosen là 94 token, rejected là 86 token.
+Tỉ lệ chosen dài hơn là 65,9%, tiêu đề biểu đồ làm tròn thành 66%.
+Các file Parquet và `stats.json` chưa được tải về repo.
+
+Đã đọc ba cặp mẫu, lưu nội dung tại `submission/preference-samples.txt`:
+
+| Cặp | Nhận xét |
+|---|---|
+| 1 — Tạo 10 yêu cầu thay đổi | Chosen đánh số đủ 1–10 và dùng thống nhất Trước / Yêu cầu / Sau. Rejected cũng có 10 mục nhưng thiếu số thứ tự 8, 9 và dùng nhãn không thống nhất. Có cơ sở ưu tiên chosen về trình bày. |
+| 2 — Phân loại bài đăng | Cả hai không dùng nhãn được yêu cầu là hung hăng / không hung hăng. Chosen trả lời Thô bạo, rejected trả lời Bạo lực. Chưa thấy cơ sở rõ để ưu tiên chosen. |
+| 3 — Đặt lịch đánh giá giọng nói | Cả hai thêm chi tiết chưa có trong đề và khẳng định đã đặt lịch thành công dù chỉ đang hướng dẫn. Rejected còn thêm URL và AVAR không được cung cấp. Chosen vẫn có lỗi dù thêm ít chi tiết hơn. |
+
+Ba cặp này cho thấy nhãn sở thích có thể có nhiễu. Chưa thể kết luận chosen luôn tốt hơn,
+cũng chưa thể suy ra mức nhiễu của toàn bộ tập dữ liệu từ ba mẫu.
 
 ---
 
@@ -49,6 +78,12 @@ cùng hướng với tập huấn luyện không, hay chỉ tập huấn luyện
 thấy không?_
 
 _Trả lời ở đây._
+
+**Giải thích từ NB0, chưa phải kết quả huấn luyện NB3:** DPO tối ưu chênh lệch reward của chosen
+và rejected. Trong ví dụ A, reward chosen là +1 và rejected là −1. Trong ví dụ B, chosen là −3
+và rejected là −5. Cả hai đều có margin 2 và loss 0,127 khi β = 1. Vì vậy xác suất chosen vẫn
+có thể giảm nếu rejected giảm nhanh hơn. RPO thêm NLL của chosen nên phạt ví dụ B nhiều hơn:
+loss RPO ở A là 2,027, ở B là 2,427. Cần đường reward thực tế ở NB3 để chẩn đoán lần chạy này.
 
 ---
 
